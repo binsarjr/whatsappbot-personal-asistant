@@ -1,14 +1,15 @@
 import { isJidGroup, isJidUser } from '@adiwajshing/baileys'
+import { readFile } from 'fs/promises'
 import GraphemeSplitter from 'grapheme-splitter'
+import { join } from 'path'
 import Asistant, { reactionsMessage } from '..'
-import { glob2regex } from '../../../Infrastructure/Utils/regex'
 
 Asistant().command.register({
-    pattern: glob2regex('.\\s{0,}react*'),
+    pattern: /^\p{Emoji}$/u,
     whoCanUse: ['me'],
     events: ['chat-update'],
     handler: async (context) => {
-        let react = context.message.replace(/\.\s{0,}react\s+/, '').trim()
+        const emoji = context.message
         const key = context.chat.key
         if (isJidGroup(key.remoteJid || '')) {
             key.participant = (
@@ -25,10 +26,10 @@ Asistant().command.register({
         if (context.chat.message?.extendedTextMessage?.contextInfo?.stanzaId)
             key.fromMe = false
 
-        reactionsMessage(key, react)
+        reactionsMessage(key, emoji)
         if (isJidUser(key.remoteJid || '')) {
             key.participant = Asistant().socket?.user.id
-            reactionsMessage(key, react)
+            reactionsMessage(key, emoji)
         }
     }
 })
@@ -36,10 +37,15 @@ Asistant().command.register({
 Asistant().command.register({
     pattern: /.*/,
     fromMe: false,
-    whoCanUse: ['group'],
     events: ['chat-update'],
     handler: async (context) => {
         const text = context.message.toLowerCase()
+
+        const fileReactions = async (filepath: string) => {
+            let texts = await readFile(filepath, 'utf8')
+            let regexs = texts.split(/\n/).map((text) => `\\b${text}\\b`)
+            return new RegExp(regexs.join('|'), 'ig')
+        }
 
         const splitter = new GraphemeSplitter()
         const patterns: {
@@ -47,25 +53,48 @@ Asistant().command.register({
             reactions: string[]
         }[] = [
             {
-                pattern:
-                    /\bma?ka?si?h\b|\bte?ri?ma?\s{0,}ka?si?h\b|\bma?nta?p\b/i,
+                pattern: await fileReactions(
+                    join(
+                        __dirname,
+                        './../../../../Resources/Reactions/thanks.txt'
+                    )
+                ),
                 reactions: splitter.splitGraphemes('😁👍')
             },
             {
-                pattern: /\boke?\b|\bsip\b/i,
+                pattern: await fileReactions(
+                    join(
+                        __dirname,
+                        './../../../../Resources/Reactions/thumbsup.txt'
+                    )
+                ),
                 reactions: splitter.splitGraphemes('👌🍺')
             },
             {
-                pattern: /\bse?ma?nga?t\b/i,
+                pattern: await fileReactions(
+                    join(
+                        __dirname,
+                        './../../../../Resources/Reactions/powerup.txt'
+                    )
+                ),
                 reactions: splitter.splitGraphemes('🔥🥳')
             },
             {
-                pattern:
-                    /\bko?nto?l\b|\bsarkem\b|\bbajingan\b|\bgo?blo?k\b|\bto?lol\b|\btod\b/i,
+                pattern: await fileReactions(
+                    join(
+                        __dirname,
+                        './../../../../Resources/Reactions/badword.txt'
+                    )
+                ),
                 reactions: splitter.splitGraphemes('👺😡😤😠')
             },
             {
-                pattern: /\bmumet\b|\bpusing\b|\bca?pek\b/i,
+                pattern: await fileReactions(
+                    join(
+                        __dirname,
+                        './../../../../Resources/Reactions/sick.txt'
+                    )
+                ),
                 reactions: splitter.splitGraphemes('🤧🤒')
             }
         ]
